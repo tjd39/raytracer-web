@@ -1,7 +1,5 @@
 package org.raytracerweb.preview.canvas;
 
-import static org.raytracerweb.preview.colour.ColourPreset.BLACK;
-
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -16,7 +14,6 @@ import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
 public class Canvas {
-    private static final Colour BLANK = BLACK.get();
     private final int width;
     private final int height;
     private ColourStack[] pixelRaster;
@@ -52,7 +49,7 @@ public class Canvas {
 
     public void clear() {
         for (int i = 0; i < pixelRaster.length; i++) {
-            pixelRaster[i] = new ColourStack(BLANK);
+            pixelRaster[i] = new ColourStack();
         }
     }
 

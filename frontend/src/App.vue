@@ -66,6 +66,21 @@
           </label>
         </section>
 
+        <section>
+          <h2>Accumulation</h2>
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="form.accumulate" :disabled="isRendering" />
+            Multi-pass accumulation
+          </label>
+          <label v-if="form.accumulate">
+            Samples <span class="hint">(2–64)</span>
+            <div class="slider-row">
+              <input type="range" v-model.number="form.sampleCount" min="2" max="64" :disabled="isRendering" />
+              <span class="value">{{ form.sampleCount }}</span>
+            </div>
+          </label>
+        </section>
+
         <section class="actions">
           <button class="btn-primary" @click="startRender" :disabled="isRendering">
             {{ isRendering ? 'Rendering…' : 'Render' }}
@@ -79,7 +94,12 @@
           <div v-if="isRendering" class="progress-bar-container">
             <div class="progress-bar" :style="{ width: progress + '%' }"></div>
           </div>
-          <p v-if="isRendering" class="progress-label">{{ progress }}%</p>
+          <p v-if="isRendering" class="progress-label">
+            {{ progress }}%
+            <span v-if="totalSamples > 1" class="sample-label">
+              — pass {{ completedSamples + (progress < 100 ? 1 : 0) }}/{{ totalSamples }}
+            </span>
+          </p>
           <p v-if="statusMessage" :class="['status-msg', statusClass]">{{ statusMessage }}</p>
         </section>
 
@@ -114,6 +134,8 @@ const statusClass = ref('')
 const pollTimer = ref(null)
 const isRendering = ref(false)
 const progress = ref(0)
+const completedSamples = ref(0)
+const totalSamples = ref(1)
 const autoRerender = ref(false)
 
 const form = ref({
@@ -121,6 +143,8 @@ const form = ref({
   height: 500,
   renderLevels: 4,
   antiAlias: 1,
+  accumulate: false,
+  sampleCount: 8,
 })
 
 // --- scene ---
@@ -147,6 +171,8 @@ async function startRender() {
   clearPoll()
   imageUrl.value = null
   progress.value = 0
+  completedSamples.value = 0
+  totalSamples.value = form.value.accumulate ? form.value.sampleCount : 1
   isRendering.value = true
   setStatus('', '')
 
@@ -163,6 +189,7 @@ async function startRender() {
       height: form.value.height,
       renderLevels: form.value.renderLevels,
       antiAlias: form.value.antiAlias,
+      sampleCount: form.value.accumulate ? form.value.sampleCount : 1,
     })
     currentJobId.value = data.jobId
     pollTimer.value = setInterval(pollStatus, 500)
@@ -177,6 +204,7 @@ async function pollStatus() {
   try {
     const { data } = await axios.get(`/api/render/${currentJobId.value}/status`)
     progress.value = data.progress ?? 0
+    completedSamples.value = data.completedSamples ?? 0
     if (data.status === 'COMPLETE') {
       clearPoll()
       isRendering.value = false
@@ -360,6 +388,7 @@ label {
   transition: width 0.3s ease;
 }
 .progress-label { font-size: 0.78rem; color: #888; text-align: right; }
+.sample-label { color: #666; }
 
 .status-msg { font-size: 0.82rem; padding: 0.4rem 0.5rem; border-radius: 4px; background: #0f3460; margin-top: 0.3rem; }
 .status-msg.success { color: #4caf50; }

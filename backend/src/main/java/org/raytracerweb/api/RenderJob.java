@@ -14,17 +14,28 @@ public class RenderJob {
     private final String id = UUID.randomUUID().toString();
     private final IRayTracer rayTracer;
     private final int totalPixels;
+    private final int sampleCount;
     private final AtomicInteger completedPixels = new AtomicInteger(0);
+    private final AtomicInteger completedSamples = new AtomicInteger(0);
     private final AtomicReference<Status> status = new AtomicReference<>(Status.PENDING);
     private volatile CommandHandle commandHandle;
     private volatile String errorMessage;
 
-    public RenderJob(IRayTracer rayTracer) {
+    public RenderJob(IRayTracer rayTracer) { this(rayTracer, 1); }
+
+    public RenderJob(IRayTracer rayTracer, int sampleCount) {
         this.rayTracer = rayTracer;
-        this.totalPixels = rayTracer.graphicsSettings().imageWidth() * rayTracer.graphicsSettings().imageHeight();
+        this.sampleCount = sampleCount;
+        this.totalPixels = rayTracer.graphicsSettings().imageWidth()
+                * rayTracer.graphicsSettings().imageHeight()
+                * sampleCount;
     }
 
     public void incrementPixel() { completedPixels.incrementAndGet(); }
+    public void incrementSample() { completedSamples.incrementAndGet(); }
+
+    public int getCompletedSamples() { return completedSamples.get(); }
+    public int getSampleCount() { return sampleCount; }
 
     public int getProgressPercent() {
         if (totalPixels == 0) return 0;

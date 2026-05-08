@@ -39,8 +39,9 @@ public class RenderController {
         int height = request.height() > 0 ? request.height() : 500;
         int renderLevels = request.renderLevels() > 0 ? request.renderLevels() : 4;
         int antiAlias = request.antiAlias() > 0 ? request.antiAlias() : 1;
+        int sampleCount = request.sampleCount() > 1 ? request.sampleCount() : 1;
 
-        RenderJob job = renderService.submit(request.scene(), width, height, renderLevels, antiAlias);
+        RenderJob job = renderService.submit(request.scene(), width, height, renderLevels, antiAlias, sampleCount);
         return ResponseEntity.accepted().body(Map.of("jobId", job.getId()));
     }
 
@@ -52,6 +53,8 @@ public class RenderController {
         Map<String, Object> body = new HashMap<>();
         body.put("status", job.getStatus().name());
         body.put("progress", job.getProgressPercent());
+        body.put("completedSamples", job.getCompletedSamples());
+        body.put("sampleCount", job.getSampleCount());
         if (job.getErrorMessage() != null) body.put("error", job.getErrorMessage());
         return ResponseEntity.ok(body);
     }
@@ -104,6 +107,6 @@ public class RenderController {
         return ResponseEntity.ok(CameraDto.from(camera));
     }
 
-    public record RenderRequest(SceneDescriptorDto scene, int width, int height, int renderLevels, int antiAlias) {}
+    public record RenderRequest(SceneDescriptorDto scene, int width, int height, int renderLevels, int antiAlias, int sampleCount) {}
     public record CameraMoveRequest(CameraDto camera, String action) {}
 }

@@ -22,29 +22,45 @@ public class RenderService {
     private final RenderEngine renderEngine = new RenderEngine();
     private final Map<String, RenderJob> jobs = new ConcurrentHashMap<>();
 
-    public RenderJob submit(SceneDescriptorDto sceneDescriptor, int width, int height, int renderLevels, int antiAlias) {
+    public RenderJob submit(SceneDescriptorDto sceneDescriptor, int width, int height,
+            int renderLevels, int antiAlias, int sampleCount) {
         SceneResult sceneResult = ScenePresets.forName(sceneDescriptor.name());
         Camera camera = sceneDescriptor.defaultCamera() != null
                 ? sceneDescriptor.defaultCamera().toCamera()
                 : sceneResult.camera();
 
-        GraphicsSettings settings = new GraphicsSettings(width, height, renderLevels, antiAlias, false, false);
+        final boolean accumulate = sampleCount > 1;
+        GraphicsSettings settings = new GraphicsSettings(width, height, renderLevels, antiAlias, accumulate, false);
         Canvas canvas = new Canvas(width, height);
 
         IRayTracer rayTracer = new LEMRayTracer(sceneResult.scene(), camera, canvas, settings);
-        RenderJob job = new RenderJob(rayTracer);
+        RenderJob job = new RenderJob(rayTracer, sampleCount);
         jobs.put(job.getId(), job);
 
         job.setStatus(RenderJob.Status.RUNNING);
-        CommandHandle handle = renderEngine.executeSingleTrace(
-                rayTracer,
-                () -> job.setStatus(RenderJob.Status.COMPLETE),
-                () -> job.setStatus(RenderJob.Status.ERROR),
-                e -> {
-                    job.setErrorMessage(e.getMessage());
-                    job.setStatus(RenderJob.Status.ERROR);
-                },
-                job::incrementPixel);
+        CommandHandle handle;
+        if (accumulate) {
+            handle = renderEngine.executeAccumulatedTrace(
+                    rayTracer, sampleCount,
+                    () -> job.setStatus(RenderJob.Status.COMPLETE),
+                    () -> job.setStatus(RenderJob.Status.ERROR),
+                    e -> {
+                        job.setErrorMessage(e.getMessage());
+                        job.setStatus(RenderJob.Status.ERROR);
+                    },
+                    job::incrementPixel,
+                    job::incrementSample);
+        } else {
+            handle = renderEngine.executeSingleTrace(
+                    rayTracer,
+                    () -> job.setStatus(RenderJob.Status.COMPLETE),
+                    () -> job.setStatus(RenderJob.Status.ERROR),
+                    e -> {
+                        job.setErrorMessage(e.getMessage());
+                        job.setStatus(RenderJob.Status.ERROR);
+                    },
+                    job::incrementPixel);
+        }
         job.setCommandHandle(handle);
 
         return job;

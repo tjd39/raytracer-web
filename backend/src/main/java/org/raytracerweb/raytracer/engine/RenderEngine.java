@@ -1,5 +1,6 @@
 package org.raytracerweb.raytracer.engine;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 import org.raytracerweb.raytracer.IRayTracer;
@@ -34,6 +35,45 @@ public class RenderEngine {
         final CommandContext context = new CommandContext(onComplete, onCancel, onError);
         RepeatingRenderCommand repeatingRenderCommand = new RepeatingRenderCommand(handle, context, rayTracer);
         repeatingRenderCommand.execute();
+        return handle;
+    }
+
+    /**
+     * Executes {@code sampleCount} render passes sequentially on the same canvas, accumulating
+     * colours per pixel.  {@code onSampleComplete} fires after each pass; {@code onComplete}
+     * fires once all passes finish.
+     */
+    public CommandHandle executeAccumulatedTrace(final IRayTracer rayTracer, final int sampleCount,
+            final Runnable onComplete, final Runnable onCancel, final Consumer<Exception> onError,
+            final Runnable onPixelComplete, final Runnable onSampleComplete) {
+        final CommandHandle handle = new CommandHandle();
+
+        Thread coordinator = new Thread(() -> {
+            try {
+                for (int sample = 0; sample < sampleCount; sample++) {
+                    if (handle.isCancelled()) { onCancel.run(); return; }
+
+                    CountDownLatch latch = new CountDownLatch(1);
+                    final boolean[] failed = {false};
+                    CommandContext ctx = new CommandContext(
+                            latch::countDown,
+                            () -> { handle.cancel(); latch.countDown(); },
+                            e -> { failed[0] = true; onError.accept(e); latch.countDown(); },
+                            onPixelComplete);
+                    new RenderCommand(handle, ctx, rayTracer).execute();
+                    latch.await();
+                    if (failed[0]) return;
+                    onSampleComplete.run();
+                }
+                if (!handle.isCancelled()) onComplete.run();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                onCancel.run();
+            }
+        }, "AccumulatorCoordinator");
+        coordinator.setDaemon(true);
+        coordinator.start();
+
         return handle;
     }
 
