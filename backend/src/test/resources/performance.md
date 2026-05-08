@@ -19,3 +19,4 @@ The avg/min/max figures are wall-clock milliseconds.
 | Date       | Commit  | LOW avg | LOW min | LOW max | MED avg | MED min | MED max | HIGH avg | HIGH min | HIGH max |
 |------------|---------|---------|---------|---------|---------|---------|---------|----------|----------|----------|
 | 2026-05-08 | d905030 |   36 ms |   28 ms |   43 ms | 1267 ms | 1144 ms | 1396 ms | 32018 ms | 31833 ms | 32164 ms |
+| 2026-05-08 | 7ec4151 |   18 ms |   10 ms |   29 ms |  141 ms |  126 ms |  158 ms |  8853 ms |  8770 ms |  8999 ms |
