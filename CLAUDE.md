@@ -16,7 +16,7 @@ A dockerised web frontend for a Java raytracer. The backend was ported from a st
 
 **LEM = Light Emissivity Model.** Soft shadows are emergent — there is no explicit shadow ray logic. Each object has an emissive colour contribution that propagates through bounces. Do not add hard-shadow logic; it would break the model.
 
-**Stochastic path tracing.** At each bounce, one outgoing ray is chosen at random (diffuse or specular based on roughness probability). This replaced a binary ray tree that was O(2^levels). Multiple render passes are accumulated and averaged for noise reduction — the `RepeatingRenderCommand` drives this. Do not restore the binary tree.
+**Stochastic path tracing.** At each bounce, one outgoing ray is chosen at random (diffuse or specular based on roughness probability). This replaced a binary ray tree that was O(2^levels). Multiple render passes can be accumulated and averaged for noise reduction — `RenderEngine.executeAccumulatedTrace()` drives this. Do not restore the binary tree.
 
 **Levels** is recursion depth (max bounces), not sample count. Anti-alias (`aa`) sets the per-pixel sub-pixel grid: `aa=2` means 4 samples per pixel.
 
@@ -31,6 +31,12 @@ A dockerised web frontend for a Java raytracer. The backend was ported from a st
 **BVH traversal must be closest-hit.** The original implementation returned the first hit from the near child without checking whether the far child had a closer triangle. The fixed version in `BVH.checkIntersection` prunes the far child only if the near hit distance beats the far child's AABB entry distance. Do not simplify this back to first-hit.
 
 **`Vec4.randomHemisphere` uses rejection sampling.** This gives a uniform sphere distribution. The old cosine-weighted approach was incorrect.
+
+**Multi-pass accumulation.** `RenderEngine.executeAccumulatedTrace(tracer, N, ...)` sequences N `RenderCommand` passes on a daemon coordinator thread (`AccumulatorCoordinator`). Each pass uses a `CountDownLatch` to block the coordinator until all worker threads finish, then fires `onSampleComplete`. A single shared `CommandHandle` covers the whole job for cancellation. `AbstractRayTracer.pixelTrace` calls `canvas.addPixelValue` (not `setPixelValue`) when `GraphicsSettings.accumulateImage()` is true.
+
+**`ColourStack.getAvgColour()` applies Reinhard tone mapping only when N > 1.** Accumulation sums raw path-tracer colours which can exceed 1.0 (HDR). The average is computed in linear space, then per-channel Reinhard (`v / (1+v)`) maps `[0,∞)` to `[0,1)` before converting to sRGB. Single-pass renders skip tone mapping so their output is unchanged. Do not apply tone mapping to single-sample stacks.
+
+**`Canvas.clear()` creates empty `ColourStack`s, not black-seeded ones.** A black seed entry was poisoning accumulated averages with a phantom zeroth sample. `ColourStack.getColour()` now guards against an empty list.
 
 ## Removed code — do not restore
 

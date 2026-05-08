@@ -22,7 +22,7 @@ raytracer-web/
 | `ray/` | `Ray`, `HitInfo` |
 | `geometry/`, `math/` | Rotation matrices, `Vec4`, helpers |
 
-**Frontend:** A single `App.vue` component handles scene selection, render settings (resolution, levels, anti-aliasing), camera movement, and polling render status via REST.
+**Frontend:** A single `App.vue` component handles scene selection, render settings (resolution, levels, anti-aliasing, accumulation), camera movement, and polling render status via REST.
 
 ## Running Locally
 
@@ -53,8 +53,22 @@ docker compose up --build
   "scene": "simple_ball",
   "width": 500,
   "height": 500,
-  "levels": 4,
-  "antiAlias": 2
+  "renderLevels": 4,
+  "antiAlias": 2,
+  "sampleCount": 8
+}
+```
+
+`sampleCount` defaults to 1 (single pass). Values >1 enable multi-pass accumulation.
+
+### Status response body
+
+```json
+{
+  "status": "RUNNING",
+  "progress": 43,
+  "completedSamples": 3,
+  "sampleCount": 8
 }
 ```
 
@@ -73,7 +87,8 @@ The engine is a **LEM (Light Emissivity Model)** stochastic path tracer. Each pi
 
 Key features:
 - **Stochastic single-branch path tracing** — O(levels) rays per pixel instead of O(2^levels)
-- **Progressive accumulation** — multiple render passes are averaged for noise reduction
+- **Multi-pass accumulation** — optionally run 2–64 passes; each pass adds to the canvas and the average is tone-mapped before output
+- **Reinhard HDR tone mapping** — accumulated pixel values are averaged in linear light space, then per-channel Reinhard (`v / (1+v)`) compresses HDR values before converting back to sRGB; single-pass renders bypass tone mapping entirely
 - **BVH acceleration** — mesh objects are subdivided into a bounding volume hierarchy for fast intersection
 - **Pre-computed primary rays** — camera rays are built once at tracer construction
 - **Thread pool rendering** — pixels distributed across all CPU cores via a static `ExecutorService`
