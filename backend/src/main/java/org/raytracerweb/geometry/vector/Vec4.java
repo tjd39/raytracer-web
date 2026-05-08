@@ -181,10 +181,13 @@ public record Vec4(float x, float y, float z, float a) {
     }
 
     public static Vec4 randomHemisphere() {
-        return new Vec4(
-                2f * (ThreadLocalRandom.current().nextFloat() - 0.5f),
-                2f * (ThreadLocalRandom.current().nextFloat() - 0.5f),
-                2f * (ThreadLocalRandom.current().nextFloat() - 0.5f)
-        ).normalise();
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        float x, y, z;
+        do {
+            x = 2f * rng.nextFloat() - 1f;
+            y = 2f * rng.nextFloat() - 1f;
+            z = 2f * rng.nextFloat() - 1f;
+        } while (x * x + y * y + z * z > 1f);
+        return new Vec4(x, y, z).normalise();
     }
 }

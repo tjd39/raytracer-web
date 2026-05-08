@@ -53,43 +53,33 @@ public class BVH extends Polygon {
         }
     }
 
-    public HitInfo aabbHit(final Ray ray) {
-        return getAABB().checkIntersection(ray);
-    }
-
     @Override
     public HitInfo checkIntersection(final Ray ray) {
-        // First check own AABB
-        if (aabbHit(ray) == null) {
-            return null;
-        }
+        if (getAABB().hitDistance(ray) < 0f) return null;
 
         if (triangleList.isEmpty()) {
-            final HitInfo lHit = left.aabbHit(ray);
-            final HitInfo rHit = right.aabbHit(ray);
+            float lDist = left.getAABB().hitDistance(ray);
+            float rDist = right.getAABB().hitDistance(ray);
 
-            // Doesn't hit left, return result of right check.
-            if (lHit == null) return right.checkIntersection(ray);
+            if (lDist < 0f) return right.checkIntersection(ray);
+            if (rDist < 0f) return left.checkIntersection(ray);
 
-            // Doesn't hit right, return result of left check.
-            if (rHit == null) return left.checkIntersection(ray);
+            // Check closer child first; only check farther child if it might beat the result
+            BVH closer  = lDist <= rDist ? left  : right;
+            BVH farther = lDist <= rDist ? right : left;
+            float fartherEntry = Math.max(lDist, rDist);
 
-            // Hits both: check closest first then fallback to furthest.
-            if (lHit.distance() < rHit.distance()) {
-                HitInfo leftHit = left.checkIntersection(ray);
-                return (leftHit != null)
-                        ? leftHit
-                        : right.checkIntersection(ray);
-            } else {
-                HitInfo rightHit = right.checkIntersection(ray);
-                return (rightHit != null)
-                        ? rightHit
-                        : left.checkIntersection(ray);
+            HitInfo closerHit = closer.checkIntersection(ray);
+            if (closerHit != null && closerHit.distance() <= fartherEntry) {
+                return closerHit;
             }
-        } else {
-            // delegate to Polygon method (check all triangles)
-            return super.checkIntersection(ray);
+            HitInfo fartherHit = farther.checkIntersection(ray);
+            if (closerHit == null) return fartherHit;
+            if (fartherHit == null) return closerHit;
+            return closerHit.distance() < fartherHit.distance() ? closerHit : fartherHit;
         }
+
+        return super.checkIntersection(ray);
     }
 
     public List<AABB> getAABBs() {

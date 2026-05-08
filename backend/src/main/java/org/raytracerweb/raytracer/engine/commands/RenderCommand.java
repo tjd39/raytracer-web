@@ -1,8 +1,8 @@
 package org.raytracerweb.raytracer.engine.commands;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.raytracerweb.preview.canvas.Pixel;
 import org.raytracerweb.raytracer.IRayTracer;
@@ -11,98 +11,68 @@ import org.raytracerweb.raytracer.engine.core.CommandHandle;
 
 /**
  * A RenderCommand that starts the rendering process using the provided ray tracer.
- * It distributes pixel tracing tasks across multiple threads, using a pixel queue.
+ * It distributes pixel tracing tasks across multiple threads using a shared atomic index.
  */
 public class RenderCommand extends AbstractCommand {
     private final IRayTracer rayTracer;
-    private Pixel canvasSizeTracker;
-    private ConcurrentLinkedQueue<Pixel> originalSharedPixelQueue;
-    private ConcurrentLinkedQueue<Pixel> workingSharedPixelQueue;
+
+    private static final ExecutorService WORKER_POOL = Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors(),
+            r -> {
+                Thread t = new Thread(r, "RenderWorker");
+                t.setDaemon(true);
+                return t;
+            });
 
     /**
-     * Creates a new StartRenderCommand with the specified handle and ray tracer.
+     * Creates a new RenderCommand with the specified handle and ray tracer.
      *
-     * @param handle    The RenderCommandHandle to manage this command.
+     * @param handle    The CommandHandle to manage this command.
+     * @param context   The CommandContext for lifecycle callbacks.
      * @param rayTracer The ray tracer to be used for rendering.
      */
     public RenderCommand(final CommandHandle handle, final CommandContext context, final IRayTracer rayTracer) {
         super(handle, context);
         this.rayTracer = rayTracer;
-        resetSharedPixelQueue();
     }
 
     @Override
     public void execute() {
         if (handle.isCancelled()) {
             context.triggerOnCancel();
+            return;
         }
 
-        resetSharedPixelQueue();
         rayTracer.validateCache();
-        List<Thread> threads = new ArrayList<>();
 
-        // Build threads, these pick pixels off a shared queue and call the rayTracer to render that pixel
-        for (int i = 0; i < Runtime.getRuntime().availableProcessors(); i++) {
-            Thread t = new Thread(() -> {
+        final int w = rayTracer.graphicsSettings().imageWidth();
+        final int h = rayTracer.graphicsSettings().imageHeight();
+        final int totalPixels = w * h;
+        final AtomicInteger pixelIndex = new AtomicInteger(0);
+        final int nWorkers = Runtime.getRuntime().availableProcessors();
+
+        context.setWorkerCount(nWorkers);
+
+        for (int i = 0; i < nWorkers; i++) {
+            WORKER_POOL.submit(() -> {
                 try {
                     while (true) {
-                        Pixel pixel = workingSharedPixelQueue.poll();
-                        if (pixel == null) {
-                            // Pixel queue empty, no more work to do
-                            context.reportWorkerDone();
-                            break;
-                        }
-
-                        // Cancellation is not checked within the ray tracer logic, only here.
                         if (handle.isCancelled()) {
                             context.triggerOnCancel();
-                            break;
-                        } else {
-                            rayTracer.pixelTrace(pixel);
-                            context.triggerOnPixelComplete();
+                            return;
                         }
+                        int idx = pixelIndex.getAndIncrement();
+                        if (idx >= totalPixels) {
+                            context.reportWorkerDone();
+                            return;
+                        }
+                        rayTracer.pixelTrace(new Pixel(idx % w, idx / w));
+                        context.triggerOnPixelComplete();
                     }
                 } catch (Exception e) {
                     context.triggerOnError(e);
                 }
-            }, "Worker-" + i);
-            threads.add(t);
+            });
         }
-
-        // Start all threads once they are created.
-        for (Thread t : threads) {
-            try {
-                t.start();
-            } catch (Exception e) {
-                context.triggerOnError(e);
-            }
-        }
-
-        context.setWorkerThreads(threads);
-    }
-
-    private ConcurrentLinkedQueue<Pixel> buildSharedPixelQueue() {
-        final int imageWidth = rayTracer.graphicsSettings().imageWidth();
-        final int imageHeight = rayTracer.graphicsSettings().imageHeight();
-        final ConcurrentLinkedQueue<Pixel> sharedPixelQueue = new ConcurrentLinkedQueue<>();
-
-        for (int y = 0; y < imageHeight; y++) {
-            for (int x = 0; x < imageWidth; x++) {
-                sharedPixelQueue.add(new Pixel(x, y));
-            }
-        }
-
-        this.canvasSizeTracker = new Pixel(imageWidth, imageHeight);
-        return sharedPixelQueue;
-    }
-
-    private void resetSharedPixelQueue() {
-        if (originalSharedPixelQueue == null
-                || canvasSizeTracker == null
-                || canvasSizeTracker.x() != rayTracer.graphicsSettings().imageWidth()
-                || canvasSizeTracker.y() != rayTracer.graphicsSettings().imageHeight()) {
-            this.originalSharedPixelQueue = buildSharedPixelQueue();
-        }
-        workingSharedPixelQueue = new ConcurrentLinkedQueue<>(originalSharedPixelQueue);
     }
 }

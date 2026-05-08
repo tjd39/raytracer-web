@@ -5,6 +5,7 @@ import static org.raytracerweb.math.MathHelper.lerp;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.raytracerweb.geometry.vector.Vec4;
 import org.raytracerweb.preview.canvas.Canvas;
 import org.raytracerweb.preview.colour.Colour;
 import org.raytracerweb.preview.graphics.GraphicsSettings;
@@ -34,9 +35,7 @@ public class LEMRayTracer extends AbstractRayTracer {
 
     // https://viclw17.github.io/2018/08/05/raytracing-dielectric-materials
     private void recursiveRayCast(final Ray ray, final Colour emission, final Colour absorption, final int level) {
-        if (level == 0) {
-            return;
-        }
+        if (level == 0) return;
 
         HitInfo hitInfo = checkIntersections(ray, level);
         if (hitInfo == null) {
@@ -48,20 +47,23 @@ public class LEMRayTracer extends AbstractRayTracer {
 
         Material objectMaterial = hitInfo.object().getMaterial();
         float transparency = objectMaterial.getTransparency();
+
         if (transparency == 0 || ThreadLocalRandom.current().nextFloat() > transparency) {
             if (hitInfo.frontFaceIntersection()) {
-                final Colour diffuseAbsorption = new Colour(1f, 1f, 1f);
-                final Colour diffuseEmission = new Colour(0f, 0f, 0f);
-                Ray diffuseRay = new Ray(ray.getPositionAt(hitInfo.distance()).plus(hitInfo.normal().scale(BIAS)), hitInfo.normal().plus(randomHemisphere()).normalise());
-                recursiveRayCast(diffuseRay, diffuseEmission, diffuseAbsorption, level - 1);
-
-                final Colour specularAbsorption = new Colour(1f, 1f, 1f);
-                final Colour specularEmission = new Colour(0f, 0f, 0f);
-                Ray reflectionRay = reflectionRay(ray, hitInfo, objectMaterial);
-                recursiveRayCast(reflectionRay, specularEmission, specularAbsorption, level - 1);
-
-                emission.plus(Colour.average(diffuseEmission, specularEmission));
-                absorption.multiply(Colour.average(diffuseAbsorption, specularAbsorption));
+                Vec4 hitPoint = ray.getPositionAt(hitInfo.distance());
+                float roughness = objectMaterial.getRoughness();
+                // Stochastic branch selection: rough=1 → always diffuse, rough=0 → always specular
+                final Ray nextRay;
+                if (ThreadLocalRandom.current().nextFloat() < roughness) {
+                    nextRay = new Ray(
+                            hitPoint.plus(hitInfo.normal().scale(BIAS)),
+                            hitInfo.normal().plus(randomHemisphere()).normalise());
+                } else {
+                    nextRay = new Ray(
+                            hitPoint.plus(hitInfo.normal().scale(BIAS)),
+                            reflectionDirection(hitInfo.normal(), ray.direction(), roughness));
+                }
+                recursiveRayCast(nextRay, emission, absorption, level - 1);
             }
         } else {
             Ray refractionRay = refractionRay(ray, hitInfo, objectMaterial);

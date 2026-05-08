@@ -75,35 +75,24 @@ public class Triangle extends SceneObject {
 
     @Override
     public HitInfo checkIntersection(Ray ray) {
-        if (!isRender()) {
-            return null;
-        }
+        if (!isRender()) return null;
 
-        boolean frontFaceIntersection = false;
         float iDotN = ray.direction().dot(normal);
+        if (iDotN == 0.0f) return null;
 
-        if (iDotN == 0.0) {
-            // Grazing Incidence
-            return null;
-        }
+        boolean frontFaceIntersection = iDotN < 0.0f;
+        float intersectionDistance = (ray.origin().to(p1).dot(normal)) / iDotN;
+        if (intersectionDistance <= 0.0f) return null;
 
-        if (iDotN < 0.0f) {
-            frontFaceIntersection = true;
-        }
+        Vec4 hitPoint = ray.getPositionAt(intersectionDistance);
+        if (!pointInTriangle(hitPoint)) return null;
 
-        // Point is behind viewing plane
-        float intersectionDistance = ((ray.origin().to(p1)).dot(normal)) / iDotN;
-        if (intersectionDistance > 0.0f
-                && pointInTriangle(ray.getPositionAt(intersectionDistance))) {
-            final Vec4 normalAtHit = normalAt(ray.getPositionAt(intersectionDistance));
-            return new HitInfo(intersectionDistance,
-                    this,
-                    (normals.equals(IGNORE) && !frontFaceIntersection) ? normalAtHit.reverse() : normalAtHit,
-                    normals.equals(IGNORE) || frontFaceIntersection
-            );
-        }
-
-        return null;
+        return new HitInfo(
+                intersectionDistance,
+                this,
+                (normals.equals(IGNORE) && !frontFaceIntersection) ? normal.reverse() : normal,
+                normals.equals(IGNORE) || frontFaceIntersection
+        );
     }
 
     @Override
@@ -121,16 +110,10 @@ public class Triangle extends SceneObject {
     }
 
     // Barycentric coordinates... P = p1 + uP3 + vP2
-    private Boolean pointInTriangle(final Vec4 point) {
+    private boolean pointInTriangle(final Vec4 point) {
         Vec4 barycentricCoords = getUVCoords(point);
         double u = barycentricCoords.x();
         double v = barycentricCoords.y();
-        // 0 <= U, V <= 1 // 0 <= (U + V) <= 1 // These are the limits.
-        if ((0.0 <= u) && (u <= 1.0)) {
-            if ((0.0 <= v) && (v <= 1.0)) {
-                return (u + v) <= 1.0;
-            }
-        }
-        return false;
+        return (0.0 <= u) && (u <= 1.0) && (0.0 <= v) && (v <= 1.0) && (u + v) <= 1.0;
     }
 }

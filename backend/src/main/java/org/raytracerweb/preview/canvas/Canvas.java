@@ -7,7 +7,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
-import java.util.concurrent.ConcurrentHashMap;
 
 import javax.imageio.ImageIO;
 
@@ -20,15 +19,14 @@ public class Canvas {
     private static final Colour BLANK = BLACK.get();
     private final int width;
     private final int height;
-    private final ConcurrentHashMap<Pixel, ColourStack> pixelRaster;
+    private ColourStack[] pixelRaster;
     private final BufferedImage image;
 
     public Canvas(final int width, final int height) {
         this.width = width;
         this.height = height;
-
         image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        pixelRaster = new ConcurrentHashMap<>(width * height);
+        pixelRaster = new ColourStack[width * height];
         clear();
     }
 
@@ -41,29 +39,27 @@ public class Canvas {
     }
 
     public Colour getPixelValue(int x, int y) {
-        return pixelRaster.get(new Pixel(x, y)).getColour();
+        return pixelRaster[y * width + x].getColour();
     }
 
-    public synchronized void setPixelValue(final int x, final int y, final Colour colour) {
-        pixelRaster.put(new Pixel(x, y), new ColourStack(colour));
+    public void setPixelValue(final int x, final int y, final Colour colour) {
+        pixelRaster[y * width + x] = new ColourStack(colour);
     }
 
-    public synchronized void addPixelValue(final int x, final int y, final Colour colour) {
-        pixelRaster.get(new Pixel(x, y)).addColour(colour);
+    public void addPixelValue(final int x, final int y, final Colour colour) {
+        pixelRaster[y * width + x].addColour(colour);
     }
 
     public void clear() {
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                setPixelValue(x, y, BLANK);
-            }
+        for (int i = 0; i < pixelRaster.length; i++) {
+            pixelRaster[i] = new ColourStack(BLANK);
         }
     }
 
     public BufferedImage getBufferedImage() {
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                image.setRGB(x, y, pixelRaster.get(new Pixel(x, y)).getAvgColour().getRGBValue());
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, pixelRaster[y * width + x].getAvgColour().getRGBValue());
             }
         }
         return image;

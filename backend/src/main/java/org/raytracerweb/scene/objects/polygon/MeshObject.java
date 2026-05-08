@@ -19,10 +19,7 @@ public class MeshObject extends Polygon {
 
     @Override
     public HitInfo checkIntersection(final Ray ray) {
-        if (getAABB().checkIntersection(ray) != null) {
-            return super.checkIntersection(ray);
-        }
-        return null;
+        return getAABB().hitDistance(ray) >= 0f ? super.checkIntersection(ray) : null;
     }
 
 }

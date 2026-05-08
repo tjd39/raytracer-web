@@ -40,40 +40,32 @@ public class Sphere extends SceneObject {
             return null;
         }
 
-        // offset ray to local object co-ords
+        // direction is normalised so a=1; simplified form: t = (-b ± sqrt(b²-4c)) / 2
         Vec4 local = origin.to(ray.origin());
+        float b = 2.0f * ray.direction().dot(local);
+        float c = local.dot(local) - radius * radius;
+        float discriminant = b * b - 4.0f * c;
 
-        // Calculate Quadratic Elements: x = (-b +- sqrt((b * b) - (4.0 * a * c))) / (2.0 * a)
-        float a = ray.direction().dot(ray.direction());
-        float b = 2.0f * (ray.direction().dot(local));
-        float c = (local.dot(local)) - (radius * radius);
-        float quadraticSolution = (float) ((b * b) - (4.0 * a * c));
-
-        // Ray misses the sphere
         float distance;
         boolean frontFaceIntersection = true;
-        if (quadraticSolution < 0.0f) {
+        if (discriminant < 0.0f) {
             return null;
-        } else if (quadraticSolution == 0.0f) {
-            distance = -b / (2.0f * a);
+        } else if (discriminant == 0.0f) {
+            distance = -b * 0.5f;
         } else {
-            float ds = (float) Math.sqrt(quadraticSolution);
-            float t0 = ((-b - ds) / (2.0f * a));
-            float t1 = ((-b + ds) / (2.0f * a));
+            float ds = (float) Math.sqrt(discriminant);
+            float t0 = (-b - ds) * 0.5f;
+            float t1 = (-b + ds) * 0.5f;
             if (t0 > 0.0f && t1 > 0.0f) {
-                distance = Math.min(t0, t1); // both are in front of the ray, take the closest one.
+                distance = Math.min(t0, t1);
             } else if (t0 < 0.0f && t1 < 0.0f) {
-                return null; // both are behind the ray, take neither.
+                return null;
             } else {
-                distance = Math.max(t0, t1); // only one is in front of the ray, take that one.
+                distance = Math.max(t0, t1);
                 frontFaceIntersection = false;
             }
         }
-
-        if (distance <= 0.0f) {
-            return null;
-        }
-
+        if (distance <= 0.0f) return null;
         return new HitInfo(distance, this, normalAt(ray.getPositionAt(distance)), frontFaceIntersection);
     }
 

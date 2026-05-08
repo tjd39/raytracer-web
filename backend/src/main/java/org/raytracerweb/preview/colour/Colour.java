@@ -3,7 +3,6 @@ package org.raytracerweb.preview.colour;
 import static org.raytracerweb.math.MathHelper.clamp;
 
 import java.awt.*;
-import java.util.Arrays;
 
 import org.raytracerweb.math.MathHelper;
 
@@ -143,10 +142,14 @@ public class Colour {
         return this; // already mutable
     }
 
+    public static Colour average(final Colour a, final Colour b) {
+        return new Colour((a.r + b.r) * 0.5f, (a.g + b.g) * 0.5f, (a.b + b.b) * 0.5f);
+    }
+
     public static Colour average(final Colour... colours) {
-        Colour average = new Colour(0f, 0f, 0f);
-        Arrays.stream(colours).forEach(average::plus);
-        return average.scale(1f / colours.length);
+        Colour avg = new Colour(0f, 0f, 0f);
+        for (Colour c : colours) avg.plus(c);
+        return avg.scale(1f / colours.length);
     }
 
     public static Colour fromRGBValue(final int rgbValue) {

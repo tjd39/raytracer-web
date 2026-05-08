@@ -4,9 +4,6 @@ import static org.raytracerweb.math.MathHelper.clamp;
 import static org.raytracerweb.math.MathHelper.lerp;
 
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.raytracerweb.geometry.vector.Vec4;
 import org.raytracerweb.preview.canvas.Canvas;
@@ -27,9 +24,7 @@ public abstract class AbstractRayTracer implements IRayTracer {
     protected Canvas canvas;
     protected GraphicsSettings graphicsSettings;
 
-    private ConcurrentMap<SubPixel, Ray> primaryRayCache = new ConcurrentHashMap<>();
-    private ConcurrentMap<Ray, HitInfo> primaryHitCache = new ConcurrentHashMap<>();
-    private AtomicInteger lastHash = new AtomicInteger(0);
+    private Ray[] primaryRayCache;
 
     public AbstractRayTracer(Scene scene, Camera camera, Canvas canvas, GraphicsSettings graphicsSettings) {
         setScene(scene);
@@ -64,6 +59,7 @@ public abstract class AbstractRayTracer implements IRayTracer {
 
     public void setCamera(Camera camera) {
         this.camera = camera;
+        if (this.graphicsSettings != null) this.primaryRayCache = buildPrimaryRayCache();
     }
 
     public void setCanvas(Canvas canvas) {
@@ -72,6 +68,26 @@ public abstract class AbstractRayTracer implements IRayTracer {
 
     public void setGraphicsSettings(GraphicsSettings graphicsSettings) {
         this.graphicsSettings = graphicsSettings;
+        if (this.camera != null) this.primaryRayCache = buildPrimaryRayCache();
+    }
+
+    private Ray[] buildPrimaryRayCache() {
+        int w = graphicsSettings.imageWidth();
+        int h = graphicsSettings.imageHeight();
+        int aa = graphicsSettings.antiAlias();
+        Ray[] cache = new Ray[w * h * aa * aa];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                Pixel pixel = new Pixel(x, y);
+                for (int py = 0; py < aa; py++) {
+                    for (int px = 0; px < aa; px++) {
+                        cache[(y * w + x) * aa * aa + py * aa + px] =
+                                createPrimaryRay(new SubPixel(pixel, px, py));
+                    }
+                }
+            }
+        }
+        return cache;
     }
 
     @Override
@@ -101,12 +117,7 @@ public abstract class AbstractRayTracer implements IRayTracer {
 
     @Override
     public HitInfo checkIntersections(Ray ray, int level) {
-        if (level == graphicsSettings.renderLevels()) {
-            // Only cache primary ray hit information
-            return primaryHitCache.computeIfAbsent(ray, this::calculateIntersection);
-        } else {
-            return calculateIntersection(ray);
-        }
+        return calculateIntersection(ray);
     }
 
     protected HitInfo calculateIntersection(Ray ray) {
@@ -131,7 +142,10 @@ public abstract class AbstractRayTracer implements IRayTracer {
     }
 
     private Ray getPixelRay(SubPixel subPixel) {
-        return primaryRayCache.computeIfAbsent(subPixel, this::createPrimaryRay);
+        int w = graphicsSettings.imageWidth();
+        int aa = graphicsSettings.antiAlias();
+        int x = subPixel.pixel().x(), y = subPixel.pixel().y();
+        return primaryRayCache[(y * w + x) * aa * aa + subPixel.py() * aa + subPixel.px()];
     }
 
     private Ray createPrimaryRay(SubPixel subPixel) {
@@ -193,16 +207,6 @@ public abstract class AbstractRayTracer implements IRayTracer {
     }
 
     public void validateCache() {
-        int currentHash = this.hashCode();
-        int previousHash = lastHash.getAndSet(currentHash);
-        if (currentHash != previousHash) {
-            primaryRayCache.clear();
-            primaryHitCache.clear();
-        }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(scene, camera, graphicsSettings);
+        // primary rays are pre-computed at construction time; nothing to do
     }
 }

@@ -67,6 +67,60 @@ public class AABB extends SceneObject {
         maxZ = Math.max(maxZ, other.maxZ);
     }
 
+    /**
+     * Returns the entry distance along the ray into this AABB, or -1 if the ray misses.
+     * Cheaper than checkIntersection — no HitInfo/Vec4 allocation, no normal computation.
+     * Used by BVH traversal for AABB culling.
+     */
+    public float hitDistance(final Ray ray) {
+        float tNear = -Float.MAX_VALUE;
+        float tFar  =  Float.MAX_VALUE;
+
+        // X slab
+        float ox = ray.origin().x(), dx = ray.direction().x();
+        if (Math.abs(dx) < 1e-6f) {
+            if (ox < minX || ox > maxX) return -1f;
+        } else {
+            float inv = 1f / dx;
+            float t1 = (minX - ox) * inv;
+            float t2 = (maxX - ox) * inv;
+            if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+            tNear = Math.max(tNear, t1);
+            tFar  = Math.min(tFar,  t2);
+            if (tNear > tFar || tFar < 0f) return -1f;
+        }
+
+        // Y slab
+        float oy = ray.origin().y(), dy = ray.direction().y();
+        if (Math.abs(dy) < 1e-6f) {
+            if (oy < minY || oy > maxY) return -1f;
+        } else {
+            float inv = 1f / dy;
+            float t1 = (minY - oy) * inv;
+            float t2 = (maxY - oy) * inv;
+            if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+            tNear = Math.max(tNear, t1);
+            tFar  = Math.min(tFar,  t2);
+            if (tNear > tFar || tFar < 0f) return -1f;
+        }
+
+        // Z slab
+        float oz = ray.origin().z(), dz = ray.direction().z();
+        if (Math.abs(dz) < 1e-6f) {
+            if (oz < minZ || oz > maxZ) return -1f;
+        } else {
+            float inv = 1f / dz;
+            float t1 = (minZ - oz) * inv;
+            float t2 = (maxZ - oz) * inv;
+            if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+            tNear = Math.max(tNear, t1);
+            tFar  = Math.min(tFar,  t2);
+            if (tNear > tFar || tFar < 0f) return -1f;
+        }
+
+        return tNear >= 0f ? tNear : tFar;
+    }
+
     public HitInfo checkIntersection(Ray ray) {
         float tNear = -Float.MAX_VALUE;
         float tFar = Float.MAX_VALUE;
