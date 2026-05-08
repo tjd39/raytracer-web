@@ -1,0 +1,17 @@
+# Maven / Java
+target/
+*.class
+*.jar
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
