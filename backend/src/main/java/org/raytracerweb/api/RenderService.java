@@ -1,7 +1,9 @@
 package org.raytracerweb.api;
 
+import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.raytracerweb.api.dto.CameraDto;
 import org.raytracerweb.api.dto.CustomSceneDto;
@@ -31,8 +33,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class RenderService {
 
+    private static final int MAX_JOBS = 20;
+
     private final RenderEngine renderEngine = new RenderEngine();
     private final Map<String, RenderJob> jobs = new ConcurrentHashMap<>();
+    private final Map<String, Long> jobOrder = new ConcurrentHashMap<>();
+    private final AtomicLong jobCounter = new AtomicLong(0);
 
     public RenderJob submit(SceneDescriptorDto sceneDescriptor, int width, int height,
             int renderLevels, int antiAlias, int sampleCount) {
@@ -47,30 +53,24 @@ public class RenderService {
 
         IRayTracer rayTracer = new LEMRayTracer(sceneResult.scene(), camera, canvas, settings);
         RenderJob job = new RenderJob(rayTracer, sampleCount);
-        jobs.put(job.getId(), job);
+        registerJob(job);
 
         job.setStatus(RenderJob.Status.RUNNING);
         CommandHandle handle;
         if (accumulate) {
             handle = renderEngine.executeAccumulatedTrace(
                     rayTracer, sampleCount,
-                    () -> job.setStatus(RenderJob.Status.COMPLETE),
+                    completeHandler(job),
                     () -> job.setStatus(RenderJob.Status.ERROR),
-                    e -> {
-                        job.setErrorMessage(e.getMessage());
-                        job.setStatus(RenderJob.Status.ERROR);
-                    },
+                    e -> { job.setErrorMessage(e.getMessage()); job.setStatus(RenderJob.Status.ERROR); },
                     job::incrementPixel,
                     job::incrementSample);
         } else {
             handle = renderEngine.executeSingleTrace(
                     rayTracer,
-                    () -> job.setStatus(RenderJob.Status.COMPLETE),
+                    completeHandler(job),
                     () -> job.setStatus(RenderJob.Status.ERROR),
-                    e -> {
-                        job.setErrorMessage(e.getMessage());
-                        job.setStatus(RenderJob.Status.ERROR);
-                    },
+                    e -> { job.setErrorMessage(e.getMessage()); job.setStatus(RenderJob.Status.ERROR); },
                     job::incrementPixel);
         }
         job.setCommandHandle(handle);
@@ -175,14 +175,14 @@ public class RenderService {
 
         IRayTracer rayTracer = new LEMRayTracer(sceneResult.scene(), camera, canvas, settings);
         RenderJob job = new RenderJob(rayTracer, sampleCount);
-        jobs.put(job.getId(), job);
+        registerJob(job);
 
         job.setStatus(RenderJob.Status.RUNNING);
         CommandHandle handle;
         if (accumulate) {
             handle = renderEngine.executeAccumulatedTrace(
                     rayTracer, sampleCount,
-                    () -> job.setStatus(RenderJob.Status.COMPLETE),
+                    completeHandler(job),
                     () -> job.setStatus(RenderJob.Status.ERROR),
                     e -> { job.setErrorMessage(e.getMessage()); job.setStatus(RenderJob.Status.ERROR); },
                     job::incrementPixel,
@@ -190,13 +190,36 @@ public class RenderService {
         } else {
             handle = renderEngine.executeSingleTrace(
                     rayTracer,
-                    () -> job.setStatus(RenderJob.Status.COMPLETE),
+                    completeHandler(job),
                     () -> job.setStatus(RenderJob.Status.ERROR),
                     e -> { job.setErrorMessage(e.getMessage()); job.setStatus(RenderJob.Status.ERROR); },
                     job::incrementPixel);
         }
         job.setCommandHandle(handle);
         return job;
+    }
+
+    private void registerJob(RenderJob job) {
+        evictOldJobsIfNeeded();
+        jobs.put(job.getId(), job);
+        jobOrder.put(job.getId(), jobCounter.getAndIncrement());
+    }
+
+    private void evictOldJobsIfNeeded() {
+        if (jobs.size() < MAX_JOBS) return;
+        // Remove the oldest finished jobs first; if still over limit, remove oldest running.
+        jobs.entrySet().stream()
+                .filter(e -> e.getValue().getStatus() != RenderJob.Status.RUNNING)
+                .sorted(Comparator.comparingLong(e -> jobOrder.getOrDefault(e.getKey(), 0L)))
+                .limit(jobs.size() - MAX_JOBS + 1)
+                .forEach(e -> { jobs.remove(e.getKey()); jobOrder.remove(e.getKey()); });
+    }
+
+    private Runnable completeHandler(RenderJob job) {
+        return () -> {
+            job.encodePngAndRelease();
+            job.setStatus(RenderJob.Status.COMPLETE);
+        };
     }
 
     public RenderJob get(String id) {

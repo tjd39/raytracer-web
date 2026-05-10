@@ -5,186 +5,218 @@
     </header>
 
     <div class="layout">
+
       <!-- Scene builder panel — only shown when custom scene is selected -->
-      <aside v-if="isCustomScene" class="scene-builder">
-        <div class="builder-header">
-          <span>Scene Builder</span>
-          <button class="btn-export" @click="exportScene" title="Export scene JSON">Export JSON</button>
-        </div>
+      <template v-if="isCustomScene">
+        <aside
+          class="scene-builder"
+          :class="{ 'scene-builder--collapsed': builderCollapsed }"
+          :style="builderCollapsed ? {} : { width: builderWidth + 'px' }"
+        >
+          <!-- Collapse toggle tab -->
+          <button
+            class="builder-collapse-tab"
+            @click="builderCollapsed = !builderCollapsed"
+            :title="builderCollapsed ? 'Expand scene builder' : 'Collapse scene builder'"
+          >{{ builderCollapsed ? '›' : '‹' }}</button>
 
-        <!-- Sky -->
-        <section>
-          <h2>Sky</h2>
-          <label>
-            Type
-            <select v-model="custom.sky.type" :disabled="isRendering">
-              <option value="default">Sky blue</option>
-              <option value="black">Black</option>
-              <option value="solid">Custom colour</option>
-            </select>
-          </label>
-          <label v-if="custom.sky.type === 'solid'">
-            Colour
-            <input type="color" v-model="custom.sky.hex" :disabled="isRendering" class="color-input" />
-          </label>
-        </section>
-
-        <!-- Light -->
-        <section>
-          <h2>Light</h2>
-          <label>
-            Source
-            <select v-model="custom.light.type" :disabled="isRendering">
-              <option value="sun">Sun (white, overhead)</option>
-              <option value="sunset">Sunset (warm, side)</option>
-              <option value="none">None</option>
-            </select>
-          </label>
-        </section>
-
-        <!-- Floor -->
-        <section>
-          <h2>Floor</h2>
-          <label>
-            Surface
-            <select v-model="custom.floor.type" :disabled="isRendering">
-              <option value="texture">Texture</option>
-              <option value="solid">Solid colour</option>
-              <option value="none">No floor</option>
-            </select>
-          </label>
-          <template v-if="custom.floor.type === 'texture'">
-            <label>
-              Texture
-              <select v-model="custom.floor.texture" :disabled="isRendering">
-                <option value="chequerboard">Chequerboard</option>
-                <option value="mc_grass">Minecraft grass</option>
-                <option value="mc_cobble">Minecraft cobble</option>
-                <option value="mc_dirt">Minecraft dirt</option>
-                <option value="greyscale_noise_random">Greyscale noise</option>
-                <option value="rainbow_noise_random">Rainbow noise</option>
-                <option value="debug">Debug</option>
-              </select>
-            </label>
-          </template>
-          <template v-if="custom.floor.type === 'solid'">
-            <label>
-              Colour
-              <input type="color" v-model="custom.floor.hex" :disabled="isRendering" class="color-input" />
-            </label>
-          </template>
-          <template v-if="custom.floor.type !== 'none'">
-            <label>
-              Roughness
-              <div class="slider-row">
-                <input type="range" v-model.number="custom.floor.roughness" min="0" max="1" step="0.05" :disabled="isRendering" />
-                <span class="value">{{ custom.floor.roughness.toFixed(2) }}</span>
-              </div>
-            </label>
-            <label>
-              Height
-              <input type="number" v-model.number="custom.floor.height" step="0.5" :disabled="isRendering" />
-            </label>
-          </template>
-        </section>
-
-        <!-- Spheres -->
-        <section>
-          <h2>Spheres</h2>
-          <div v-for="(sphere, idx) in custom.spheres" :key="idx" class="sphere-card">
-            <div class="sphere-card-header">
-              <span>Sphere {{ idx + 1 }}</span>
-              <button class="btn-remove" @click="removeSphere(idx)" :disabled="isRendering">✕</button>
+          <!-- Panel content — hidden when collapsed -->
+          <template v-if="!builderCollapsed">
+            <div class="builder-header">
+              <span>Scene Builder</span>
+              <button class="btn-export" @click="exportScene" title="Export scene JSON">Export JSON</button>
             </div>
 
-            <label>
-              Material
-              <select v-model="sphere.materialType" :disabled="isRendering">
-                <option value="simple">Simple</option>
-                <option value="iridescent">Iridescent</option>
-                <option value="kaleidoscopic">Kaleidoscopic</option>
-              </select>
-            </label>
-
-            <template v-if="sphere.materialType === 'simple'">
+            <!-- Sky -->
+            <section>
+              <h2>Sky</h2>
               <label>
+                Type
+                <select v-model="custom.sky.type" :disabled="isRendering">
+                  <option value="default">Sky blue</option>
+                  <option value="black">Black</option>
+                  <option value="solid">Custom colour</option>
+                </select>
+              </label>
+              <label v-if="custom.sky.type === 'solid'">
                 Colour
-                <input type="color" v-model="sphere.hex" :disabled="isRendering" class="color-input" />
+                <input type="color" v-model="custom.sky.hex" :disabled="isRendering" class="color-input" />
               </label>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="sphere.emissive" :disabled="isRendering" />
-                Emissive
-              </label>
-              <label v-if="sphere.emissive">
-                Emission colour
-                <input type="color" v-model="sphere.emissionHex" :disabled="isRendering" class="color-input" />
-              </label>
-              <label>
-                Transparency
-                <div class="slider-row">
-                  <input type="range" v-model.number="sphere.transparency" min="0" max="1" step="0.05" :disabled="isRendering" />
-                  <span class="value">{{ sphere.transparency.toFixed(2) }}</span>
-                </div>
-              </label>
-              <label v-if="sphere.transparency > 0">
-                Index of refraction
-                <div class="slider-row">
-                  <input type="range" v-model.number="sphere.ior" min="1" max="3" step="0.025" :disabled="isRendering" />
-                  <span class="value">{{ sphere.ior.toFixed(2) }}</span>
-                </div>
-              </label>
-            </template>
+            </section>
 
-            <template v-if="sphere.materialType === 'iridescent'">
+            <!-- Light -->
+            <section>
+              <h2>Light</h2>
               <label>
-                Transparency
-                <div class="slider-row">
-                  <input type="range" v-model.number="sphere.transparency" min="0" max="1" step="0.05" :disabled="isRendering" />
-                  <span class="value">{{ sphere.transparency.toFixed(2) }}</span>
-                </div>
+                Source
+                <select v-model="custom.light.type" :disabled="isRendering">
+                  <option value="sun">Sun (white, overhead)</option>
+                  <option value="sunset">Sunset (warm, side)</option>
+                  <option value="none">None</option>
+                </select>
               </label>
-              <label v-if="sphere.transparency > 0">
-                Index of refraction
-                <div class="slider-row">
-                  <input type="range" v-model.number="sphere.ior" min="1" max="3" step="0.025" :disabled="isRendering" />
-                  <span class="value">{{ sphere.ior.toFixed(2) }}</span>
-                </div>
-              </label>
-            </template>
+            </section>
 
-            <template v-if="sphere.materialType !== 'kaleidoscopic'">
+            <!-- Floor -->
+            <section>
+              <h2>Floor</h2>
               <label>
-                Roughness
-                <div class="slider-row">
-                  <input type="range" v-model.number="sphere.roughness" min="0" max="1" step="0.05" :disabled="isRendering" />
-                  <span class="value">{{ sphere.roughness.toFixed(2) }}</span>
+                Surface
+                <select v-model="custom.floor.type" :disabled="isRendering">
+                  <option value="texture">Texture</option>
+                  <option value="solid">Solid colour</option>
+                  <option value="none">No floor</option>
+                </select>
+              </label>
+              <template v-if="custom.floor.type === 'texture'">
+                <label>
+                  Texture
+                  <select v-model="custom.floor.texture" :disabled="isRendering">
+                    <option value="chequerboard">Chequerboard</option>
+                    <option value="mc_grass">Minecraft grass</option>
+                    <option value="mc_cobble">Minecraft cobble</option>
+                    <option value="mc_dirt">Minecraft dirt</option>
+                    <option value="greyscale_noise_random">Greyscale noise</option>
+                    <option value="rainbow_noise_random">Rainbow noise</option>
+                    <option value="debug">Debug</option>
+                  </select>
+                </label>
+              </template>
+              <template v-if="custom.floor.type === 'solid'">
+                <label>
+                  Colour
+                  <input type="color" v-model="custom.floor.hex" :disabled="isRendering" class="color-input" />
+                </label>
+              </template>
+              <template v-if="custom.floor.type !== 'none'">
+                <label>
+                  Roughness
+                  <div class="slider-row">
+                    <input type="range" v-model.number="custom.floor.roughness" min="0" max="1" step="0.05" :disabled="isRendering" />
+                    <span class="value">{{ custom.floor.roughness.toFixed(2) }}</span>
+                  </div>
+                </label>
+                <label>
+                  Height
+                  <input type="number" v-model.number="custom.floor.height" step="0.5" :disabled="isRendering" />
+                </label>
+              </template>
+            </section>
+
+            <!-- Spheres -->
+            <section>
+              <h2>Spheres</h2>
+              <div v-for="(sphere, idx) in custom.spheres" :key="idx" class="sphere-card">
+                <div class="sphere-card-header" @click="sphere.collapsed = !sphere.collapsed">
+                  <span class="sphere-card-title">
+                    <span class="sphere-collapse-icon">{{ sphere.collapsed ? '▶' : '▼' }}</span>
+                    Sphere {{ idx + 1 }}
+                  </span>
+                  <span class="sphere-summary" v-if="sphere.collapsed">
+                    r={{ sphere.radius }} · {{ sphere.materialType }}
+                  </span>
+                  <button class="btn-remove" @click.stop="removeSphere(idx)" :disabled="isRendering">✕</button>
                 </div>
-              </label>
-            </template>
 
-            <div class="xyz-row">
-              <label>
-                X
-                <input type="number" v-model.number="sphere.x" step="0.5" :disabled="isRendering" />
-              </label>
-              <label>
-                Y
-                <input type="number" v-model.number="sphere.y" step="0.5" :disabled="isRendering" />
-              </label>
-              <label>
-                Z
-                <input type="number" v-model.number="sphere.z" step="0.5" :disabled="isRendering" />
-              </label>
-            </div>
-            <label>
-              Radius
-              <input type="number" v-model.number="sphere.radius" min="0.05" step="0.1" :disabled="isRendering" />
-            </label>
-          </div>
+                <template v-if="!sphere.collapsed">
+                  <label>
+                    Material
+                    <select v-model="sphere.materialType" :disabled="isRendering">
+                      <option value="simple">Simple</option>
+                      <option value="iridescent">Iridescent</option>
+                      <option value="kaleidoscopic">Kaleidoscopic</option>
+                    </select>
+                  </label>
 
-          <button class="btn-add-sphere" @click="addSphere" :disabled="isRendering">+ Add sphere</button>
-        </section>
-      </aside>
+                  <template v-if="sphere.materialType === 'simple'">
+                    <label>
+                      Colour
+                      <input type="color" v-model="sphere.hex" :disabled="isRendering" class="color-input" />
+                    </label>
+                    <label class="checkbox-label">
+                      <input type="checkbox" v-model="sphere.emissive" :disabled="isRendering" />
+                      Emissive
+                    </label>
+                    <label v-if="sphere.emissive">
+                      Emission colour
+                      <input type="color" v-model="sphere.emissionHex" :disabled="isRendering" class="color-input" />
+                    </label>
+                    <label>
+                      Transparency
+                      <div class="slider-row">
+                        <input type="range" v-model.number="sphere.transparency" min="0" max="1" step="0.05" :disabled="isRendering" />
+                        <span class="value">{{ sphere.transparency.toFixed(2) }}</span>
+                      </div>
+                    </label>
+                    <label v-if="sphere.transparency > 0">
+                      Index of refraction
+                      <div class="slider-row">
+                        <input type="range" v-model.number="sphere.ior" min="1" max="3" step="0.025" :disabled="isRendering" />
+                        <span class="value">{{ sphere.ior.toFixed(3) }}</span>
+                      </div>
+                    </label>
+                  </template>
+
+                  <template v-if="sphere.materialType === 'iridescent'">
+                    <label>
+                      Transparency
+                      <div class="slider-row">
+                        <input type="range" v-model.number="sphere.transparency" min="0" max="1" step="0.05" :disabled="isRendering" />
+                        <span class="value">{{ sphere.transparency.toFixed(2) }}</span>
+                      </div>
+                    </label>
+                    <label v-if="sphere.transparency > 0">
+                      Index of refraction
+                      <div class="slider-row">
+                        <input type="range" v-model.number="sphere.ior" min="1" max="3" step="0.025" :disabled="isRendering" />
+                        <span class="value">{{ sphere.ior.toFixed(3) }}</span>
+                      </div>
+                    </label>
+                  </template>
+
+                  <template v-if="sphere.materialType !== 'kaleidoscopic'">
+                    <label>
+                      Roughness
+                      <div class="slider-row">
+                        <input type="range" v-model.number="sphere.roughness" min="0" max="1" step="0.05" :disabled="isRendering" />
+                        <span class="value">{{ sphere.roughness.toFixed(2) }}</span>
+                      </div>
+                    </label>
+                  </template>
+
+                  <div class="xyz-row">
+                    <label>
+                      X
+                      <input type="number" v-model.number="sphere.x" step="0.5" :disabled="isRendering" />
+                    </label>
+                    <label>
+                      Y
+                      <input type="number" v-model.number="sphere.y" step="0.5" :disabled="isRendering" />
+                    </label>
+                    <label>
+                      Z
+                      <input type="number" v-model.number="sphere.z" step="0.5" :disabled="isRendering" />
+                    </label>
+                  </div>
+                  <label>
+                    Radius
+                    <input type="number" v-model.number="sphere.radius" min="0.05" step="0.1" :disabled="isRendering" />
+                  </label>
+                </template>
+              </div>
+
+              <button class="btn-add-sphere" @click="addSphere" :disabled="isRendering">+ Add sphere</button>
+            </section>
+          </template>
+        </aside>
+
+        <!-- Drag resize handle (only when expanded) -->
+        <div
+          v-if="!builderCollapsed"
+          class="builder-resize-handle"
+          @mousedown.prevent="startBuilderResize"
+        ></div>
+      </template>
 
       <!-- Controls sidebar -->
       <aside class="controls">
@@ -308,7 +340,7 @@ import axios from 'axios'
 // ─── state ────────────────────────────────────────────────────────────────────
 const scenes = ref([])
 const selectedSceneName = ref('')
-const camera = ref(null)   // CameraDto: { position: [x,y,z], look: [x,y,z] }
+const camera = ref(null)
 const imageUrl = ref(null)
 const currentJobId = ref(null)
 const statusMessage = ref('')
@@ -331,6 +363,30 @@ const form = ref({
 
 const isCustomScene = computed(() => selectedSceneName.value === 'custom')
 
+// ─── scene builder panel state ────────────────────────────────────────────────
+const builderCollapsed = ref(false)
+const builderWidth = ref(280)
+const MIN_BUILDER_WIDTH = 180
+const MAX_BUILDER_WIDTH = 600
+
+function startBuilderResize(e) {
+  const startX = e.clientX
+  const startWidth = builderWidth.value
+
+  function onMouseMove(ev) {
+    const delta = ev.clientX - startX
+    builderWidth.value = Math.min(MAX_BUILDER_WIDTH, Math.max(MIN_BUILDER_WIDTH, startWidth + delta))
+  }
+
+  function onMouseUp() {
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+  }
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+}
+
 // ─── custom scene state ───────────────────────────────────────────────────────
 const defaultSphere = () => ({
   materialType: 'simple',
@@ -339,9 +395,10 @@ const defaultSphere = () => ({
   emissionHex: '#ffffff',
   roughness: 0.8,
   transparency: 0,
-  ior: 1.5,
+  ior: 1.05,
   x: 0, y: 0.5, z: 0,
   radius: 0.5,
+  collapsed: false,
 })
 
 const custom = ref({
@@ -563,21 +620,72 @@ header h1 { font-size: 1.3rem; color: #e94560; letter-spacing: 0.05em; }
   flex-direction: column;
   gap: 1.25rem;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .controls {
   width: 260px;
   min-width: 260px;
-  flex-shrink: 0;
 }
 
 .scene-builder {
+  position: relative;
   width: 280px;
   min-width: 280px;
-  flex-shrink: 0;
-  border-right: 1px solid #0f3460;
+  overflow-x: hidden;
 }
 
+.scene-builder--collapsed {
+  width: 28px !important;
+  min-width: 28px !important;
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* ── Builder collapse tab ── */
+.builder-collapse-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 48px;
+  background: #0f3460;
+  border: 1px solid #1a4a7a;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  color: #aaa;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.builder-collapse-tab:hover { background: #1a5090; color: #e0e0e0; }
+
+.scene-builder--collapsed .builder-collapse-tab {
+  right: auto;
+  left: 5px;
+  border-right: 1px solid #1a4a7a;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ── Drag resize handle ── */
+.builder-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.builder-resize-handle:hover { background: #e94560; }
+
+/* ── Sidebar headings ── */
 .controls h2, .scene-builder h2 {
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -596,6 +704,7 @@ header h1 { font-size: 1.3rem; color: #e94560; letter-spacing: 0.05em; }
   color: #ccc;
   padding-bottom: 0.25rem;
   border-bottom: 1px solid #0f3460;
+  padding-right: 20px;
 }
 
 .btn-export {
@@ -607,6 +716,7 @@ header h1 { font-size: 1.3rem; color: #e94560; letter-spacing: 0.05em; }
   padding: 0.25rem 0.5rem;
   cursor: pointer;
   transition: background 0.12s;
+  white-space: nowrap;
 }
 .btn-export:hover { background: #1a5090; color: #e0e0e0; }
 
@@ -615,8 +725,9 @@ header h1 { font-size: 1.3rem; color: #e94560; letter-spacing: 0.05em; }
   background: #0f1e3a;
   border: 1px solid #1a3a6a;
   border-radius: 6px;
-  padding: 0.75rem;
+  padding: 0;
   margin-bottom: 0.75rem;
+  overflow: hidden;
 }
 
 .sphere-card-header {
@@ -625,7 +736,58 @@ header h1 { font-size: 1.3rem; color: #e94560; letter-spacing: 0.05em; }
   align-items: center;
   font-size: 0.8rem;
   color: #aaa;
-  margin-bottom: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+  user-select: none;
+  gap: 0.4rem;
+}
+.sphere-card-header:hover { background: #162040; }
+
+.sphere-card > template + * {
+  padding: 0 0.75rem 0.75rem;
+}
+
+/* body of an open sphere card — first non-header child after the template */
+.sphere-card label,
+.sphere-card select,
+.sphere-card .xyz-row,
+.sphere-card .slider-row,
+.sphere-card input[type="number"] {
+  /* inherits sidebar styles; add left/right padding via wrapping */
+}
+
+.sphere-card > .sphere-card-header ~ label,
+.sphere-card > .sphere-card-header ~ .xyz-row,
+.sphere-card > .sphere-card-header ~ template {
+  padding: 0 0.75rem;
+}
+
+/* Simpler: add padding to the card body via a wrapper div */
+.sphere-card-body {
+  padding: 0.1rem 0.75rem 0.75rem;
+}
+
+.sphere-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 500;
+}
+
+.sphere-collapse-icon {
+  font-size: 0.6rem;
+  color: #555;
+}
+
+.sphere-summary {
+  flex: 1;
+  font-size: 0.72rem;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  padding-right: 0.4rem;
 }
 
 .btn-remove {
@@ -637,6 +799,7 @@ header h1 { font-size: 1.3rem; color: #e94560; letter-spacing: 0.05em; }
   padding: 0 0.2rem;
   line-height: 1;
   transition: color 0.12s;
+  flex-shrink: 0;
 }
 .btn-remove:hover:not(:disabled) { color: #e94560; }
 .btn-remove:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -698,7 +861,7 @@ label {
 
 .slider-row { display: flex; align-items: center; gap: 0.5rem; }
 .slider-row input[type="range"] { flex: 1; accent-color: #e94560; }
-.value { font-size: 0.875rem; color: #e0e0e0; min-width: 2.5rem; text-align: right; }
+.value { font-size: 0.875rem; color: #e0e0e0; min-width: 2.8rem; text-align: right; }
 .hint { font-size: 0.72rem; color: #555; }
 
 /* ── Camera grid ── */

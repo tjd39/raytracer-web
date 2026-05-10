@@ -1,13 +1,8 @@
 package org.raytracerweb.api;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.imageio.ImageIO;
 
 import org.raytracerweb.api.dto.CameraDto;
 import org.raytracerweb.api.dto.CustomSceneDto;
@@ -68,16 +63,9 @@ public class RenderController {
             return ResponseEntity.status(HttpStatus.ACCEPTED).build();
         }
 
-        try {
-            BufferedImage image = job.getRayTracer().canvas().getBufferedImage();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", baos);
-            return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_PNG)
-                    .body(baos.toByteArray());
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().build();
-        }
+        byte[] png = job.getPngBytes();
+        if (png == null) return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(png);
     }
 
     @PostMapping("/api/render/custom")
