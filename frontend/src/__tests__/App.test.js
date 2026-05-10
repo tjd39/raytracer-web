@@ -52,9 +52,11 @@ describe('scene loading', () => {
     await flushPromises()
 
     const options = wrapper.findAll('select option')
-    expect(options).toHaveLength(SCENES.length)
+    // preset scenes + the static "Custom" option
+    expect(options).toHaveLength(SCENES.length + 1)
     expect(options[0].text()).toBe('Simple ball')
     expect(options[1].text()).toBe('Pool balls')
+    expect(options[SCENES.length].text()).toBe('Custom')
   })
 
   it('sets the first scene as selected by default', async () => {

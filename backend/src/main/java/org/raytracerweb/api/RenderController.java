@@ -10,6 +10,7 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 import org.raytracerweb.api.dto.CameraDto;
+import org.raytracerweb.api.dto.CustomSceneDto;
 import org.raytracerweb.api.dto.SceneDescriptorDto;
 import org.raytracerweb.scene.ScenePresets;
 import org.raytracerweb.scene.camera.Camera;
@@ -79,6 +80,19 @@ public class RenderController {
         }
     }
 
+    @PostMapping("/api/render/custom")
+    public ResponseEntity<Map<String, String>> submitCustomRender(@RequestBody CustomRenderRequest request) {
+        int width = request.width() > 0 ? request.width() : 500;
+        int height = request.height() > 0 ? request.height() : 500;
+        int renderLevels = request.renderLevels() > 0 ? request.renderLevels() : 4;
+        int antiAlias = request.antiAlias() > 0 ? request.antiAlias() : 1;
+        int sampleCount = request.sampleCount() > 1 ? request.sampleCount() : 1;
+
+        RenderJob job = renderService.submitCustom(request.scene(), request.camera(),
+                width, height, renderLevels, antiAlias, sampleCount);
+        return ResponseEntity.accepted().body(Map.of("jobId", job.getId()));
+    }
+
     @DeleteMapping("/api/render/{id}")
     public ResponseEntity<Void> cancelRender(@PathVariable String id) {
         return renderService.cancel(id)
@@ -108,5 +122,6 @@ public class RenderController {
     }
 
     public record RenderRequest(SceneDescriptorDto scene, int width, int height, int renderLevels, int antiAlias, int sampleCount) {}
+    public record CustomRenderRequest(CustomSceneDto scene, CameraDto camera, int width, int height, int renderLevels, int antiAlias, int sampleCount) {}
     public record CameraMoveRequest(CameraDto camera, String action) {}
 }
